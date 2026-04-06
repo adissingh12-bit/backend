@@ -3,17 +3,17 @@
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
-"scripts": {
-  "start": "node index.js"
-},
+  "scripts": {
+    "start": "node index.js"
+  },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "better-sqlite3": "^12.8.0",
     "cors": "^2.8.6",
     "express": "^5.2.1",
-    "mqtt": "^5.15.0",
-    "sqlite3": "^5.1.7"
+    "mqtt": "^5.15.0"
   }
 }
