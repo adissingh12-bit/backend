@@ -58,14 +58,8 @@ client.on("connect", () => {
     console.log("Subscribed to:", TOPIC);
 });
 
-// ===== MQTT ERROR HANDLING =====
-client.on("error", (err) => {
-    console.log("MQTT Error:", err);
-});
-
-client.on("offline", () => {
-    console.log("MQTT Offline");
-});
+client.on("error", (err) => console.log("MQTT Error:", err));
+client.on("offline", () => console.log("MQTT Offline"));
 
 // ===== PREPARED STATEMENTS =====
 const stmtEnv = db.prepare(`
@@ -86,42 +80,44 @@ client.on("message", (topic, message) => {
         const data = JSON.parse(message.toString());
         console.log("Received:", data);
 
-        // ENVIRONMENT DATA
         if (data.temperature !== undefined) {
             stmtEnv.run(
-                data.node_id,
-                data.room,
-                data.temperature,
-                data.humidity,
-                data.mq135_raw,
-                data.mq135_ppm,
-                data.mq135_do
+                data.node_id || "UNKNOWN",
+                data.room || "UNKNOWN",
+                data.temperature || 0,
+                data.humidity || 0,
+                data.mq135_raw || 0,
+                data.mq135_ppm || 0,
+                data.mq135_do || 0
             );
             console.log("Environmental data stored");
-        }
-
-        // VITALS DATA
-        else if (data.heart_rate !== undefined) {
+        } else if (data.heart_rate !== undefined) {
             stmtVitals.run(
-                data.node_id,
-                data.room,
-                data.human_detected,
-                data.heart_rate,
-                data.breath_rate,
-                data.distance_m,
-                data.move_speed_cm
+                data.node_id || "UNKNOWN",
+                data.room || "UNKNOWN",
+                data.human_detected || 0,
+                data.heart_rate || 0,
+                data.breath_rate || 0,
+                data.distance_m || 0,
+                data.move_speed_cm || 0
             );
             console.log("Vitals data stored");
         }
 
-    } catch (err) {
+    } catch {
         console.log("Invalid JSON ignored");
     }
 });
 
 // ===== API ROUTES =====
+app.get("/", (req, res) => {
+    res.send("Backend is running 🚀");
+});
 
-// Environmental data
+app.get("/health", (req, res) => {
+    res.json({ status: "ok" });
+});
+
 app.get("/api/environment", (req, res) => {
     const rows = db.prepare(
         "SELECT * FROM environmental_data ORDER BY timestamp DESC LIMIT 20"
@@ -129,7 +125,6 @@ app.get("/api/environment", (req, res) => {
     res.json(rows);
 });
 
-// Vitals data
 app.get("/api/vitals", (req, res) => {
     const rows = db.prepare(
         "SELECT * FROM vitals_data ORDER BY timestamp DESC LIMIT 20"
@@ -140,6 +135,6 @@ app.get("/api/vitals", (req, res) => {
 // ===== START SERVER =====
 const PORT = process.env.PORT || 3000;
 
-app.listen(PORT, () => {
+app.listen(PORT, "0.0.0.0", () => {
     console.log("Server running on port", PORT);
 });
