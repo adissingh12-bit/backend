@@ -45,6 +45,18 @@ CREATE TABLE IF NOT EXISTS vitals_data (
 )
 `).run();
 
+// 🔥 NEW RFID TABLE
+db.prepare(`
+CREATE TABLE IF NOT EXISTS rfid_data (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    node_id TEXT,
+    room TEXT,
+    uid TEXT,
+    access TEXT,
+    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+)
+`).run();
+
 console.log("Tables ready");
 
 // ===== MQTT CONNECT =====
@@ -74,12 +86,19 @@ INSERT INTO vitals_data
 VALUES (?, ?, ?, ?, ?, ?, ?)
 `);
 
+// 🔥 NEW RFID INSERT
+const stmtRFID = db.prepare(`
+INSERT INTO rfid_data (node_id, room, uid, access)
+VALUES (?, ?, ?, ?)
+`);
+
 // ===== MQTT MESSAGE HANDLER =====
 client.on("message", (topic, message) => {
     try {
         const data = JSON.parse(message.toString());
         console.log("Received:", data);
 
+        // ENVIRONMENT NODE
         if (data.temperature !== undefined) {
             stmtEnv.run(
                 data.node_id || "UNKNOWN",
@@ -91,7 +110,10 @@ client.on("message", (topic, message) => {
                 data.mq135_do || 0
             );
             console.log("Environmental data stored");
-        } else if (data.heart_rate !== undefined) {
+        }
+
+        // VITALS NODE
+        else if (data.heart_rate !== undefined) {
             stmtVitals.run(
                 data.node_id || "UNKNOWN",
                 data.room || "UNKNOWN",
@@ -104,7 +126,18 @@ client.on("message", (topic, message) => {
             console.log("Vitals data stored");
         }
 
-    } catch {
+        // 🔥 RFID NODE
+        else if (data.uid !== undefined) {
+            stmtRFID.run(
+                data.node_id || "NODE-03",
+                data.room || "RFID",
+                data.uid,
+                data.access || "UNKNOWN"
+            );
+            console.log("RFID data stored");
+        }
+
+    } catch (err) {
         console.log("Invalid JSON ignored");
     }
 });
@@ -128,6 +161,14 @@ app.get("/api/environment", (req, res) => {
 app.get("/api/vitals", (req, res) => {
     const rows = db.prepare(
         "SELECT * FROM vitals_data ORDER BY timestamp DESC LIMIT 20"
+    ).all();
+    res.json(rows);
+});
+
+// 🔥 NEW RFID API
+app.get("/api/rfid", (req, res) => {
+    const rows = db.prepare(
+        "SELECT * FROM rfid_data ORDER BY timestamp DESC LIMIT 20"
     ).all();
     res.json(rows);
 });
