@@ -93,7 +93,6 @@ VALUES (?, ?, ?, ?)
 // ===== MQTT MESSAGE HANDLER =====
 client.on("message", (topic, message) => {
 
-    // 🔥 PRINT RAW MESSAGE FIRST
     const raw = message.toString();
     console.log("RAW MQTT:", raw);
 
@@ -103,7 +102,7 @@ client.on("message", (topic, message) => {
         data = JSON.parse(raw);
     } catch (err) {
         console.log("❌ JSON PARSE FAILED:", err.message);
-        return; // skip bad payload
+        return;
     }
 
     console.log("✅ Parsed Data:", data);
@@ -122,12 +121,12 @@ client.on("message", (topic, message) => {
         console.log("🌿 Environmental data stored");
     }
 
-    // ===== VITALS NODE (🔥 FIXED CONDITION) =====
+    // ===== VITALS NODE (🔥 FIXED) =====
     else if (data.heart_rate !== undefined || data.breath_rate !== undefined) {
         stmtVitals.run(
             data.node_id || "UNKNOWN",
             data.room || "UNKNOWN",
-            data.human_detected || 0,
+            data.human_detected ? 1 : 0,   // 🔥 BOOLEAN FIX
             Number(data.heart_rate) ?? -1,
             Number(data.breath_rate) ?? -1,
             Number(data.distance_m) ?? 0,
