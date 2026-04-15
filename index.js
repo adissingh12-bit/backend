@@ -45,7 +45,6 @@ CREATE TABLE IF NOT EXISTS vitals_data (
 )
 `).run();
 
-// 🔥 NEW RFID TABLE
 db.prepare(`
 CREATE TABLE IF NOT EXISTS rfid_data (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -86,7 +85,6 @@ INSERT INTO vitals_data
 VALUES (?, ?, ?, ?, ?, ?, ?)
 `);
 
-// 🔥 NEW RFID INSERT
 const stmtRFID = db.prepare(`
 INSERT INTO rfid_data (node_id, room, uid, access)
 VALUES (?, ?, ?, ?)
@@ -94,51 +92,63 @@ VALUES (?, ?, ?, ?)
 
 // ===== MQTT MESSAGE HANDLER =====
 client.on("message", (topic, message) => {
+
+    // 🔥 PRINT RAW MESSAGE FIRST
+    const raw = message.toString();
+    console.log("RAW MQTT:", raw);
+
+    let data;
+
     try {
-        const data = JSON.parse(message.toString());
-        console.log("Received:", data);
-
-        // ENVIRONMENT NODE
-        if (data.temperature !== undefined) {
-            stmtEnv.run(
-                data.node_id || "UNKNOWN",
-                data.room || "UNKNOWN",
-                data.temperature || 0,
-                data.humidity || 0,
-                data.mq135_raw || 0,
-                data.mq135_ppm || 0,
-                data.mq135_do || 0
-            );
-            console.log("Environmental data stored");
-        }
-
-        // VITALS NODE
-        else if (data.heart_rate !== undefined) {
-            stmtVitals.run(
-                data.node_id || "UNKNOWN",
-                data.room || "UNKNOWN",
-                data.human_detected || 0,
-                data.heart_rate || 0,
-                data.breath_rate || 0,
-                data.distance_m || 0,
-                data.move_speed_cm || 0
-            );
-            console.log("Vitals data stored");
-        }
-
-        // 🔥 RFID NODE
-        else if (data.uid !== undefined) {
-            stmtRFID.run(
-                data.node_id || "NODE-03",
-                data.room || "RFID",
-                data.uid,
-                data.access || "UNKNOWN"
-            );
-            console.log("RFID data stored");
-        }
-
+        data = JSON.parse(raw);
     } catch (err) {
-        console.log("Invalid JSON ignored");
+        console.log("❌ JSON PARSE FAILED:", err.message);
+        return; // skip bad payload
+    }
+
+    console.log("✅ Parsed Data:", data);
+
+    // ===== ENV NODE =====
+    if (data.temperature !== undefined) {
+        stmtEnv.run(
+            data.node_id || "UNKNOWN",
+            data.room || "UNKNOWN",
+            Number(data.temperature) || 0,
+            Number(data.humidity) || 0,
+            Number(data.mq135_raw) || 0,
+            Number(data.mq135_ppm) || 0,
+            Number(data.mq135_do) || 0
+        );
+        console.log("🌿 Environmental data stored");
+    }
+
+    // ===== VITALS NODE (🔥 FIXED CONDITION) =====
+    else if (data.heart_rate !== undefined || data.breath_rate !== undefined) {
+        stmtVitals.run(
+            data.node_id || "UNKNOWN",
+            data.room || "UNKNOWN",
+            data.human_detected || 0,
+            Number(data.heart_rate) ?? -1,
+            Number(data.breath_rate) ?? -1,
+            Number(data.distance_m) ?? 0,
+            Number(data.move_speed_cm) ?? 0
+        );
+        console.log("❤️ Vitals data stored");
+    }
+
+    // ===== RFID NODE =====
+    else if (data.uid !== undefined) {
+        stmtRFID.run(
+            data.node_id || "NODE-03",
+            data.room || "RFID",
+            data.uid,
+            data.access || "UNKNOWN"
+        );
+        console.log("🔐 RFID data stored");
+    }
+
+    else {
+        console.log("⚠ Unknown data format:", data);
     }
 });
 
@@ -165,7 +175,6 @@ app.get("/api/vitals", (req, res) => {
     res.json(rows);
 });
 
-// 🔥 NEW RFID API
 app.get("/api/rfid", (req, res) => {
     const rows = db.prepare(
         "SELECT * FROM rfid_data ORDER BY timestamp DESC LIMIT 20"
